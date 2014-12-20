@@ -1,0 +1,1 @@
+runghc tests/Unit.hs
