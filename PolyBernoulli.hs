@@ -1,4 +1,6 @@
+module PolyBernoulli where
 
+import Data.List
 
 data ZeroOne = Zero | One  deriving (Show)
 
@@ -39,4 +41,21 @@ hatExtension :: ZOMatrix -> ZOMatrix
 hatExtension x = undefined
 --hatExtension [[]] = [[0]]
 --hatExtension (x:xs) = (addZero x)   ++ zeroList (length x) 
+
+factorial :: Integer -> Integer
+factorial 0 = 1
+factorial 1 = 1
+factorial n = n * factorial (n-1)
+
+rankList :: Ord a => [a] -> Int
+rankList x = head (elemIndices x (permutations (sort x)))  
+
+unrankList :: Ord a => [a] -> Int -> [a]
+unrankList l x =  permutations(sort(l)) !! x
+
+
+
+
+
+
             

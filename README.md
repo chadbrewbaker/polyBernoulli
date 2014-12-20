@@ -8,6 +8,6 @@ TODO:
 
 rank/unrank Sterling Partition numbers
 
-rank/unrank Permutations
+optimize rank/unrank list permutations
 
 
