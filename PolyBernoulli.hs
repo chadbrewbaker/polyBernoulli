@@ -22,7 +22,7 @@ type TopOne = [Integer]
 pBernToStats :: PBern -> ([RowSums],[ColSums], [TopOne])
 pBernToStats x = undefined
 
-gammaToStats :: Gamma -> (([RowSums],[ColSums], [TopOne])) 
+gammaToStats :: Gamma -> ([RowSums],[ColSums], [TopOne])
 gammaToStats x = undefined
 
 zeroList :: Int -> [ZeroOne]
@@ -51,7 +51,7 @@ rankList :: Ord a => [a] -> Int
 rankList x = head (elemIndices x (permutations (sort x)))  
 
 unrankList :: Ord a => [a] -> Int -> [a]
-unrankList l x =  permutations(sort(l)) !! x
+unrankList l x =  permutations(sort l) !! x
 
 
 
