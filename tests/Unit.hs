@@ -9,6 +9,8 @@ testFiveFactorial = TestCase $ assertEqual
   (1*2*3*4*5) 
   (factorial 5) 
 
-main = runTestTT testFiveFactorial
+main = runTestTT $ TestList[
+	testFiveFactorial,
+	testFiveFactorial]
 
 
