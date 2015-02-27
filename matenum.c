@@ -27,7 +27,7 @@ int PATTERN[16][2][2] = {{{0, 0}, {0, 0}},
 #define PRINT_MASKS_TOGGLE 0
 
 int PATTERN_MASK;
-#define CHECK_BIT(var,pos) ((var) & ( 1 << (pos)))
+#define CHECK_BIT(var, pos) ((var) & (1 << (pos)))
 
 unsigned long long int COUNT;
 int MAX = 5;
@@ -35,7 +35,7 @@ int MAX = 5;
 void printPatternMask() {
   int i;
   for (i = 0; i < 16; i++) {
-    printf("%d", !!CHECK_BIT(PATTERN_MASK,i) ); 
+    printf("%d", !!CHECK_BIT(PATTERN_MASK, i));
   }
   printf("\n");
 }
@@ -43,7 +43,7 @@ void printPatternMask() {
 int nextSubset() {
   PATTERN_MASK++;
   /*Quit when we overflow*/
-  if ( PATTERN_MASK == 65536) 
+  if (PATTERN_MASK == 65536)
     return 0;
   else
     return 1;
@@ -72,7 +72,7 @@ int avoidsPartialPatterns(int n, int k, int n2, int k2) {
 
       mask = 0;
       for (mask = 0; mask < 16; mask++) {
-        if (CHECK_BIT(PATTERN_MASK,mask)) {
+        if (CHECK_BIT(PATTERN_MASK, mask)) {
           hit = 0;
           hit += (M[i][j] == PATTERN[mask][0][0]);
           hit += (M[i][k2] == PATTERN[mask][0][1]);
@@ -122,17 +122,17 @@ void dfs(int n, int k) {
 
 int main() {
   int i, j;
-  PATTERN_MASK=0; 
- while (nextSubset()) {
+  PATTERN_MASK = 0;
+  while (nextSubset()) {
     for (i = 1; i < MAX; i++) {
       for (j = 1; j < MAX; j++) {
         dfs(i, j);
       }
     }
-     if(PRINT_MASKS_TOGGLE)
-     	printPatternMask();
-     else
-        printf("\n");
+    if (PRINT_MASKS_TOGGLE)
+      printPatternMask();
+    else
+      printf("\n");
   }
   return 0;
 }
