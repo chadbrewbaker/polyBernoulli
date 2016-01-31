@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#define MAX 5
+#define MAX 8
+// 73 minutes to calculate MAX 12
 int M[MAX][MAX];
 
 /*#ruby
@@ -55,16 +56,22 @@ void printMatrixSums(struct MatrixSums ms) {
 void printMatrixSumsInLatex(struct MatrixSums ms) {
   int i, j;
   printf("$$\\left[ \\begin{array}{");
-  for (i = 1; i < MAX; i++)
+  for (i = 1; i < MAX-1; i++)
     printf("c");
   printf("}\n");
-  for (i = 1; i < MAX; i++) {
-    for (j = 1; j < MAX; j++) {
+  for (i = 1; i < MAX-1; i++) {
+    for (j = 1; j < MAX-1; j++) {
+        if(i+j < MAX){
+        
       printf("%llu ", ms.counts[i][j]);
-      if ((j + 1) < MAX)
+        }
+        else{
+            printf("\? ");
+        }
+      if ((j + 1) < MAX-1)
         printf(" & ");
     }
-    if ((i + 1) < MAX)
+    if ((i + 1) < MAX-1)
       printf(" \\\\ \n");
   }
   printf(" \\end{array} \\right] $$\n");
@@ -89,12 +96,12 @@ int cmpfunc(const void *a, const void *b) {
                   ((struct MatrixSums *)b)->counts));
 }
 
-void printPatternMask() {
+void printPatternMask(FILE* f) {
   int i;
   for (i = 0; i < 16; i++) {
-    printf("%d", !!CHECK_BIT(PATTERN_MASK, i));
+    fprintf(f,"%d", !!CHECK_BIT(PATTERN_MASK, i));
   }
-  printf("\n");
+  fprintf(f,"\n");
 }
 
 void print2x2MatrixInLatex(int i) {
@@ -212,11 +219,18 @@ int main() {
   do {
     for (i = 1; i < MAX; i++) {
       for (j = 1; j < MAX; j++) {
-        dfs(i, j);
+          if(i+j < MAX){
+              dfs(i, j);
+          }
+          else{
+              if(i< MAX && j < MAX)
+                  ALL_RESULTS[PATTERN_MASK].counts[i][j]=0;
+          }
+              
       }
     }
     if (PRINT_MASKS_TOGGLE)
-      printPatternMask();
+      printPatternMask(stderr);
     else if (PRINT_COUNTS_TOGGLE)
       printf("\n");
   } while (nextSubset());
@@ -224,12 +238,14 @@ int main() {
     print2x2MatrixInLatex(i);*/
 
   if (LATEX_TOGGLE) {
+    int wilfClass =0;
     qsort(ALL_RESULTS, 65536, sizeof(struct MatrixSums), cmpfunc);
 
     printMatrixSumsInLatex(ALL_RESULTS[0]);
     printf("\\\\\n");
+      printf("Wilf Class %d\\\\\n", wilfClass++);
       PATTERN_MASK = ALL_RESULTS[0].pattern_mask;
-      printPatternMask();
+      printPatternMask(stdout);
     //printPatternMaskInLatex(ALL_RESULTS[0].pattern_mask);
 
     for (i = 1; i < 65536; i++) {
@@ -237,10 +253,11 @@ int main() {
         printf("\\\\\n");
         printf("\\\\\n");
         printMatrixSumsInLatex(ALL_RESULTS[i]);
+          printf("Wilf Class %d\\\\\n", wilfClass++);
       }
       printf("\\\\\n");
         PATTERN_MASK =ALL_RESULTS[i].pattern_mask;
-        printPatternMask();
+        printPatternMask(stdout);
       //printPatternMaskInLatex(ALL_RESULTS[i].pattern_mask);
     }
     printf("\\end{document}");
