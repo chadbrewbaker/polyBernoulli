@@ -228,7 +228,9 @@ int main() {
 
     printMatrixSumsInLatex(ALL_RESULTS[0]);
     printf("\\\\\n");
-    printPatternMaskInLatex(ALL_RESULTS[0].pattern_mask);
+      PATTERN_MASK = ALL_RESULTS[0].pattern_mask;
+      printPatternMask();
+    //printPatternMaskInLatex(ALL_RESULTS[0].pattern_mask);
 
     for (i = 1; i < 65536; i++) {
       if (cmpMats(ALL_RESULTS[i].counts, ALL_RESULTS[i - 1].counts) != 0) {
@@ -237,7 +239,9 @@ int main() {
         printMatrixSumsInLatex(ALL_RESULTS[i]);
       }
       printf("\\\\\n");
-      printPatternMaskInLatex(ALL_RESULTS[i].pattern_mask);
+        PATTERN_MASK =ALL_RESULTS[i].pattern_mask;
+        printPatternMask();
+      //printPatternMaskInLatex(ALL_RESULTS[i].pattern_mask);
     }
     printf("\\end{document}");
   }
