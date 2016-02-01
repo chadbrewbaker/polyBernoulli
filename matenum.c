@@ -22,6 +22,9 @@ int PATTERN[16][2][2] = {
 #define LATEX_TOGGLE 1
 #define EQUIVALENCE_CLASSES_TOGGLE 0
 
+#define CHECK_BIT(var, pos) ((var) & (1 << (pos)))
+#define SET_BIT(var, pos) ((var) | (1 << (pos)))
+
 struct Pattern {
   int aa;
   int ab;
@@ -31,6 +34,36 @@ struct Pattern {
 };
 
 struct Pattern PATTERNS[16];
+int ROT_PERM[16];
+int COMP_PERM[16];
+int VERT_FLIP_PERM[16];
+int HORIZ_FLIP_PERM[16];
+
+typedef enum { VERT, HORIZ, COMP, ROT } operation;
+
+void printOpLatex(FILE *f, operation op) {
+  if (op == VERT)
+    fprintf(f, "\\uparrow ");
+  if (op == HORIZ)
+    fprintf(f, "\\leftarrow ");
+  if (op == COMP)
+    fprintf(f, "\\not ");
+  if (op == ROT)
+    fprintf(f, "\\searrow ");
+}
+
+struct MatrixSums {
+  int pattern_mask;
+  unsigned long long counts[MAX][MAX];
+  int isTranspose;
+};
+
+operation OPS_FROM_CANNON[65536][16]; // Making assuption that 16 is enough
+int OPS_LENGTH[65536];
+
+struct MatrixSums ALL_RESULTS[65536];
+
+int CANNONICAL_INDEX[65536];
 
 int matchPatterns(struct Pattern p1, struct Pattern p2) {
   if (p1.aa != p2.aa) {
@@ -57,6 +90,214 @@ void fillPatterns() {
     PATTERNS[i].bb = PATTERN[i][1][1];
     PATTERNS[i].index = i;
   }
+}
+
+struct SmallList {
+  int vals[16];
+  int length;
+};
+
+struct CannonList {
+  int vals[1024];
+  int length;
+};
+
+// Assumes lists have been sorted
+int eqSmallLists(struct SmallList l1, struct SmallList l2) {
+  int i;
+  if (l1.length < l2.length)
+    return -1;
+  if (l1.length > l2.length)
+    return 1;
+  for (i = 0; i < l1.length; i++) {
+    if (l1.vals[i] < l2.vals[i])
+      return -1;
+    if (l1.vals[i] > l2.vals[i])
+      return 1;
+  }
+  return 0;
+}
+
+// Assumes lists have been sorted
+int eqCannonLists(struct CannonList l1, struct CannonList l2) {
+  int i;
+  if (l1.length < l2.length)
+    return -1;
+  if (l1.length > l2.length)
+    return 1;
+  for (i = 0; i < l1.length; i++) {
+    if (l1.vals[i] < l2.vals[i])
+      return -1;
+    if (l1.vals[i] > l2.vals[i])
+      return 1;
+  }
+  return 0;
+}
+
+// bubblesort for non-negative ints
+void sortSmallList(struct SmallList *l) {
+  int i, j, swap;
+  for (i = 0; i < l->length; i++) {
+    swap = -1;
+    for (j = i; j < l->length - 1; j++) {
+      if (l->vals[j] > l->vals[j + 1]) {
+        swap = l->vals[j + 1];
+        l->vals[j + 1] = l->vals[j];
+        l->vals[j] = swap;
+      }
+    }
+    if (swap == -1)
+      return;
+  }
+}
+
+// bubblesort for non-negative ints
+void sortCannonList(struct CannonList *l) {
+  int i, j, swap;
+  for (i = 0; i < l->length; i++) {
+    swap = -1;
+    for (j = i; j < l->length - 1; j++) {
+      if (l->vals[j] > l->vals[j + 1]) {
+        swap = l->vals[j + 1];
+        l->vals[j + 1] = l->vals[j];
+        l->vals[j] = swap;
+      }
+    }
+    if (swap == -1)
+      return;
+  }
+}
+
+int insert(struct CannonList *l, int newVal) {
+  int i;
+  for (i = 0; i < l->length; i++) {
+    if (l->vals[i] == newVal)
+      return 0;
+  }
+  l->vals[l->length] = newVal;
+  l->length++;
+  return 1;
+}
+
+void mergeLists(struct SmallList *l1, struct SmallList *l2,
+                struct SmallList *l3) {
+  int i, j, k;
+  i = j = k = 0;
+  struct SmallList lMerged;
+  lMerged.length = 0;
+  sortSmallList(l1);
+  sortSmallList(l2);
+
+  while (1) {
+    if (i >= l1->length && j >= l2->length)
+      break;
+
+    if (k > 0) { // Remove dupes
+      if (i < l1->length) {
+        if (l1->vals[i] == lMerged.vals[k]) {
+          i++;
+          continue;
+        }
+      }
+      if (j < l2->length) {
+        if (l2->vals[j] == lMerged.vals[k]) {
+          j++;
+          continue;
+        }
+      }
+    }
+
+    if (i >= l1->length || j >= l2->length) {
+      if (i >= l1->length) {
+        lMerged.vals[k] = l2->vals[j];
+        j++;
+      } else {
+        lMerged.vals[k] = l1->vals[i];
+        i++;
+      }
+
+    } else {
+      if (l1->vals[i] < l2->vals[j]) {
+        lMerged.vals[k] = l1->vals[i];
+        i++;
+      } else {
+        lMerged.vals[k] = l2->vals[j];
+        j++;
+      }
+    }
+
+    k++;
+  }
+
+  lMerged.length = k;
+  l3->length = lMerged.length;
+  for (i = 0; i < lMerged.length; i++) {
+    l3->vals[i] = lMerged.vals[i];
+  }
+}
+
+void mergeCannonLists(struct CannonList *l1, struct CannonList *l2,
+                struct CannonList *l3) {
+  int i, j, k;
+  i = j = k = 0;
+  struct CannonList lMerged;
+  lMerged.length = 0;
+  sortCannonList(l1);
+  sortCannonList(l2);
+
+  while (1) {
+    if (i >= l1->length && j >= l2->length)
+      break;
+
+    if (k > 0) { // Remove dupes
+      if (i < l1->length) {
+        if (l1->vals[i] == lMerged.vals[k]) {
+          i++;
+          continue;
+        }
+      }
+      if (j < l2->length) {
+        if (l2->vals[j] == lMerged.vals[k]) {
+          j++;
+          continue;
+        }
+      }
+    }
+
+    if (i >= l1->length || j >= l2->length) {
+      if (i >= l1->length) {
+        lMerged.vals[k] = l2->vals[j];
+        j++;
+      } else {
+        lMerged.vals[k] = l1->vals[i];
+        i++;
+      }
+
+    } else {
+      if (l1->vals[i] < l2->vals[j]) {
+        lMerged.vals[k] = l1->vals[i];
+        i++;
+      } else {
+        lMerged.vals[k] = l2->vals[j];
+        j++;
+      }
+    }
+
+    k++;
+  }
+
+  lMerged.length = k;
+  l3->length = lMerged.length;
+  for (i = 0; i < lMerged.length; i++) {
+    l3->vals[i] = lMerged.vals[i];
+  }
+}
+
+void indexToBinVector(int index, int vector[16]) {}
+
+int binVectorToIndex(int vector[16]) {
+  int index = 0;
+  return index;
 }
 
 int patternIndex(struct Pattern p) {
@@ -101,30 +342,163 @@ void rotatePattern(struct Pattern p, struct Pattern *rotated) {
   rotated->index = patternIndex(*rotated);
 }
 
-void rotatePattern2(struct Pattern p, struct Pattern *rotated2) {
-  rotatePattern(p, rotated2);
-  rotatePattern(p, rotated2);
+void fillPerms(){
+    int i;
+    struct Pattern out;
+    
+    for(i=0;i<16;i++){
+        ROT_PERM[i] = -1;
+        COMP_PERM[i] = -1;
+        VERT_FLIP_PERM[i] = -1;
+        HORIZ_FLIP_PERM[i] = -1;
+    }
+    
+
+    for(i=0;i< 16;i++){
+        rotatePattern(PATTERNS[i],&out);
+        ROT_PERM[i]= out.index;
+    }
+    
+    for(i=0;i< 16;i++){
+        complementPattern(PATTERNS[i],&out);
+        COMP_PERM[i]= out.index;
+    }
+    
+    for(i=0;i< 16;i++){
+        horizFlipPattern(PATTERNS[i],&out);
+        HORIZ_FLIP_PERM[i]= out.index;
+    }
+    
+    for(i=0;i< 16;i++){
+        vertFlipPattern(PATTERNS[i],&out);
+        VERT_FLIP_PERM[i]= out.index;
+    }
+    
+    fprintf(stderr, "\nROT_PERM");
+    for(i=0;i<16;i++)
+        fprintf(stderr, "%d ", ROT_PERM[i]);
+     fprintf(stderr, "\nCOMP_PERM");
+    for(i=0;i<16;i++)
+        fprintf(stderr, "%d ", COMP_PERM[i]);
+     fprintf(stderr, "\nVERT_FLIP_PERM");
+    for(i=0;i<16;i++)
+        fprintf(stderr, "%d ", VERT_FLIP_PERM[i]);
+     fprintf(stderr, "\nHORIZ_FLI_PERM");
+    for(i=0;i<16;i++)
+        fprintf(stderr, "%d ", HORIZ_FLIP_PERM[i]);
+    
+}
+/*
+ void rotatePattern2(struct Pattern p, struct Pattern *rotated2) {
+ rotatePattern(p, rotated2);
+ rotatePattern(p, rotated2);
+ }
+
+ void rotatePattern3(struct Pattern p, struct Pattern *rotated3) {
+ rotatePattern(p, rotated3);
+ rotatePattern(p, rotated3);
+ rotatePattern(p, rotated3);
+ }*/
+
+/*
+
+int rotateForbs(int index) {
+    int i;
+    int result = 0;
+    for (i = 0; i < 16; i++) {
+        if (CHECK_BIT(index, i)) {
+            SET_BIT(result, ROT_PERM[i]  );
+        }
+    }
+    return result;
 }
 
-void rotatePattern3(struct Pattern p, struct Pattern *rotated3) {
-  rotatePattern(p, rotated3);
-  rotatePattern(p, rotated3);
-  rotatePattern(p, rotated3);
+
+
+int horizFlipForbs(int index) {
+    int i;
+    int result = 0;
+    for (i = 0; i < 16; i++) {
+        if (CHECK_BIT(index, i)) {
+            SET_BIT(result, HORIZ_FLIP_PERM[i]);
+        }
+    }
+    return result;
+}
+
+int vertFlipForbs(int index) {
+    int i;
+    int result = 0;
+    for (i = 0; i < 16; i++) {
+        if (CHECK_BIT(index, i)) {
+            SET_BIT(result, VERT_FLIP_PERM[i]);
+        }
+    }
+    return result;
+}
+
+int complementForbs(int index) {
+  int i;
+  int result = 0;
+  for (i = 0; i < 16; i++) {
+    if (CHECK_BIT(index, i)) {
+      SET_BIT(result, COMP_PERM[i]);
+    }
+  }
+    return result;
+}
+
+*/
+
+int applyPerm(int index, int *perm) {
+  int i;
+  int result = 0;
+  for (i = 0; i < 16; i++) {
+    if (CHECK_BIT(index, i)) {
+      SET_BIT(result, perm[i]);
+    }
+  }
+  return result;
+}
+
+void calculateCannonicalIndex() {
+  int i, j;
+  int r, v, h, c;
+  fillPatterns();
+  fillPerms();
+  struct CannonList list;
+  for (i = 0; i < 65536; i++) {
+    CANNONICAL_INDEX[i] = i;
+    OPS_LENGTH[i] = 0;
+  }
+  for (i = 0; i < 65536; i++) {
+    if (CANNONICAL_INDEX[i] == i) {
+
+      list.length = 1;
+      list.vals[0] = i;
+
+      for (j = 0; j < list.length; j++) {
+        r = applyPerm(list.vals[j], ROT_PERM);
+        h = applyPerm(list.vals[j], HORIZ_FLIP_PERM);
+        v = applyPerm(list.vals[j], VERT_FLIP_PERM);
+        c = applyPerm(list.vals[j], COMP_PERM);
+
+        insert(&list, r);
+        insert(&list, h);
+        insert(&list, v);
+        insert(&list, c);
+      }
+
+      for (j = 0; j < list.length; j++)
+        CANNONICAL_INDEX[list.vals[j]] = i;
+    }
+ }
 }
 
 int PATTERN_MASK;
-#define CHECK_BIT(var, pos) ((var) & (1 << (pos)))
 
 unsigned long long int COUNT;
 int MAX_EXPONENT;
-
-struct MatrixSums {
-  int pattern_mask;
-  unsigned long long counts[MAX][MAX];
-  int isTranspose;
-};
-
-struct MatrixSums ALL_RESULTS[65536];
 
 void printMatrixSums(struct MatrixSums ms) {
   int i, j;
@@ -315,6 +689,8 @@ void dfs(int n, int k) {
 
 int main() {
   int i, j;
+  if (EQUIVALENCE_CLASSES_TOGGLE)
+    calculateCannonicalIndex();
 
   if (LATEX_TOGGLE) {
     system("cat prelude.tex");
