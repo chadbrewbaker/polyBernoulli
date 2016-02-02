@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #define MAX 7
@@ -20,7 +21,7 @@ int PATTERN[16][2][2] = {
 #define PRINT_MASKS_TOGGLE 0
 #define PRINT_COUNTS_TOGGLE 0
 #define LATEX_TOGGLE 1
-#define EQUIVALENCE_CLASSES_TOGGLE 0
+#define EQUIVALENCE_CLASSES_TOGGLE 1
 
 #define CHECK_BIT(var, pos) ((var) & (1 << (pos)))
 #define SET_BIT(var, pos) ((var) | (1 << (pos)))
@@ -56,7 +57,29 @@ struct MatrixSums {
   int pattern_mask;
   unsigned long long counts[MAX][MAX];
   int isTranspose;
+  int cannon_index;
+  operation ops[16];
+  int opCount;
 };
+
+void printOps(FILE *f, struct MatrixSums ms) {
+  int i;
+  if (ms.opCount > 0) {
+
+    fprintf(f, " $");
+    for (i = 0; i < ms.opCount; i++) {
+      if (ms.ops[i] == ROT)
+        fprintf(f, "\\searrow ");
+      if (ms.ops[i] == VERT)
+        fprintf(f, "\\uparrow ");
+      if (ms.ops[i] == HORIZ)
+        fprintf(f, "\\leftarrow ");
+      if (ms.ops[i] == COMP)
+        fprintf(f, "\\neg ");
+    }
+    fprintf(f, "$");
+  }
+}
 
 operation OPS_FROM_CANNON[65536][16]; // Making assuption that 16 is enough
 int OPS_LENGTH[65536];
@@ -75,7 +98,7 @@ int matchPatterns(struct Pattern p1, struct Pattern p2) {
   if (p1.ba != p2.ba) {
     return 0;
   }
-  if (p1.ab != p2.ab) {
+  if (p1.bb != p2.bb) {
     return 0;
   }
   return 1;
@@ -175,7 +198,7 @@ int insert(struct CannonList *l, int newVal) {
       return 0;
   }
   l->vals[l->length] = newVal;
-  l->length++;
+  (l->length)++;
   return 1;
 }
 
@@ -237,7 +260,7 @@ void mergeLists(struct SmallList *l1, struct SmallList *l2,
 }
 
 void mergeCannonLists(struct CannonList *l1, struct CannonList *l2,
-                struct CannonList *l3) {
+                      struct CannonList *l3) {
   int i, j, k;
   i = j = k = 0;
   struct CannonList lMerged;
@@ -335,137 +358,109 @@ void horizFlipPattern(struct Pattern p, struct Pattern *horizFlip) {
 }
 
 void rotatePattern(struct Pattern p, struct Pattern *rotated) {
-  rotated->aa = p.ab;
-  rotated->ab = p.bb;
-  rotated->ba = p.aa;
-  rotated->bb = p.ba;
+  rotated->ab = p.aa;
+  rotated->bb = p.ab;
+  rotated->ba = p.bb;
+  rotated->aa = p.ba;
   rotated->index = patternIndex(*rotated);
 }
 
-void fillPerms(){
-    int i;
-    struct Pattern out;
-    
-    for(i=0;i<16;i++){
-        ROT_PERM[i] = -1;
-        COMP_PERM[i] = -1;
-        VERT_FLIP_PERM[i] = -1;
-        HORIZ_FLIP_PERM[i] = -1;
-    }
-    
-
-    for(i=0;i< 16;i++){
-        rotatePattern(PATTERNS[i],&out);
-        ROT_PERM[i]= out.index;
-    }
-    
-    for(i=0;i< 16;i++){
-        complementPattern(PATTERNS[i],&out);
-        COMP_PERM[i]= out.index;
-    }
-    
-    for(i=0;i< 16;i++){
-        horizFlipPattern(PATTERNS[i],&out);
-        HORIZ_FLIP_PERM[i]= out.index;
-    }
-    
-    for(i=0;i< 16;i++){
-        vertFlipPattern(PATTERNS[i],&out);
-        VERT_FLIP_PERM[i]= out.index;
-    }
-    
-    fprintf(stderr, "\nROT_PERM");
-    for(i=0;i<16;i++)
-        fprintf(stderr, "%d ", ROT_PERM[i]);
-     fprintf(stderr, "\nCOMP_PERM");
-    for(i=0;i<16;i++)
-        fprintf(stderr, "%d ", COMP_PERM[i]);
-     fprintf(stderr, "\nVERT_FLIP_PERM");
-    for(i=0;i<16;i++)
-        fprintf(stderr, "%d ", VERT_FLIP_PERM[i]);
-     fprintf(stderr, "\nHORIZ_FLI_PERM");
-    for(i=0;i<16;i++)
-        fprintf(stderr, "%d ", HORIZ_FLIP_PERM[i]);
-    
-}
-/*
- void rotatePattern2(struct Pattern p, struct Pattern *rotated2) {
- rotatePattern(p, rotated2);
- rotatePattern(p, rotated2);
- }
-
- void rotatePattern3(struct Pattern p, struct Pattern *rotated3) {
- rotatePattern(p, rotated3);
- rotatePattern(p, rotated3);
- rotatePattern(p, rotated3);
- }*/
-
-/*
-
-int rotateForbs(int index) {
-    int i;
-    int result = 0;
-    for (i = 0; i < 16; i++) {
-        if (CHECK_BIT(index, i)) {
-            SET_BIT(result, ROT_PERM[i]  );
-        }
-    }
-    return result;
-}
-
-
-
-int horizFlipForbs(int index) {
-    int i;
-    int result = 0;
-    for (i = 0; i < 16; i++) {
-        if (CHECK_BIT(index, i)) {
-            SET_BIT(result, HORIZ_FLIP_PERM[i]);
-        }
-    }
-    return result;
-}
-
-int vertFlipForbs(int index) {
-    int i;
-    int result = 0;
-    for (i = 0; i < 16; i++) {
-        if (CHECK_BIT(index, i)) {
-            SET_BIT(result, VERT_FLIP_PERM[i]);
-        }
-    }
-    return result;
-}
-
-int complementForbs(int index) {
+void fillPerms() {
   int i;
-  int result = 0;
+  struct Pattern out;
+
   for (i = 0; i < 16; i++) {
-    if (CHECK_BIT(index, i)) {
-      SET_BIT(result, COMP_PERM[i]);
-    }
+    ROT_PERM[i] = -1;
+    COMP_PERM[i] = -1;
+    VERT_FLIP_PERM[i] = -1;
+    HORIZ_FLIP_PERM[i] = -1;
   }
-    return result;
+
+  for (i = 0; i < 16; i++) {
+    rotatePattern(PATTERNS[i], &out);
+    ROT_PERM[i] = out.index;
+  }
+
+  for (i = 0; i < 16; i++) {
+    complementPattern(PATTERNS[i], &out);
+    COMP_PERM[i] = out.index;
+  }
+
+  for (i = 0; i < 16; i++) {
+    horizFlipPattern(PATTERNS[i], &out);
+    HORIZ_FLIP_PERM[i] = out.index;
+  }
+
+  for (i = 0; i < 16; i++) {
+    vertFlipPattern(PATTERNS[i], &out);
+    VERT_FLIP_PERM[i] = out.index;
+  }
+
+  fprintf(stderr, "\nROT_PERM := PermList([");
+  for (i = 0; i < 15; i++)
+    fprintf(stderr, "%d, ", ROT_PERM[i] + 1);
+  fprintf(stderr, "%d]);", ROT_PERM[i] + 1);
+
+  fprintf(stderr, "\nCOMP_PERM := PermList([");
+  for (i = 0; i < 15; i++)
+    fprintf(stderr, "%d, ", COMP_PERM[i] + 1);
+  fprintf(stderr, "%d]);", COMP_PERM[i] + 1);
+
+  fprintf(stderr, "\nVERT_FLIP_PERM := PermList([");
+  for (i = 0; i < 15; i++)
+    fprintf(stderr, "%d, ", VERT_FLIP_PERM[i] + 1);
+  fprintf(stderr, "%d]);", VERT_FLIP_PERM[i] + 1);
+
+  fprintf(stderr, "\nHORIZ_FLIP_PERM := PermList([");
+  for (i = 0; i < 15; i++)
+    fprintf(stderr, "%d, ", HORIZ_FLIP_PERM[i] + 1);
+  fprintf(stderr, "%d]);", HORIZ_FLIP_PERM[i] + 1);
+
+  fprintf(
+      stderr,
+      "\ng := Group(ROT_PERM, COMP_PERM, VERT_FLIP_PERM, HORIZ_FLIP_PERM);\n");
+  fprintf(stderr, "Orbits(g);\n");
+  fprintf(stderr, "Order(g);\n");
+  fprintf(stderr, "IsAbelian(g);\n");
+  fprintf(stderr, "StructureDescription(g);\n");
 }
 
-*/
-
-int applyPerm(int index, int *perm) {
+int allones() {
   int i;
   int result = 0;
   for (i = 0; i < 16; i++) {
-    if (CHECK_BIT(index, i)) {
-      SET_BIT(result, perm[i]);
-    }
+    result = result | (1 << (i));
   }
   return result;
 }
 
+int applyPerm(int index, int perm[16]) {
+  int i;
+  int result = 0;
+  int sixteenones;
+  for (i = 0; i < 16; i++) {
+    if (!((index) & (1 << (i)))) {
+      result = result | (1 << (perm[i]));
+    }
+  }
+
+  return result ^ (allones());
+}
+
+void concatOps(int parent, int child, operation op) {
+  int i;
+  int count = ALL_RESULTS[parent].opCount;
+
+  for (i = 0; i < count; i++)
+    ALL_RESULTS[child].ops[i] = ALL_RESULTS[parent].ops[i];
+  ALL_RESULTS[child].ops[count] = op;
+  ALL_RESULTS[child].opCount = count + 1;
+}
+
 void calculateCannonicalIndex() {
-  int i, j;
-  int r, v, h, c;
-  fillPatterns();
-  fillPerms();
+  int i, j, something;
+  int r, v, h, c, r2, r3, t;
+
   struct CannonList list;
   for (i = 0; i < 65536; i++) {
     CANNONICAL_INDEX[i] = i;
@@ -477,22 +472,56 @@ void calculateCannonicalIndex() {
       list.length = 1;
       list.vals[0] = i;
 
-      for (j = 0; j < list.length; j++) {
-        r = applyPerm(list.vals[j], ROT_PERM);
-        h = applyPerm(list.vals[j], HORIZ_FLIP_PERM);
-        v = applyPerm(list.vals[j], VERT_FLIP_PERM);
-        c = applyPerm(list.vals[j], COMP_PERM);
+      do {
+        something = 0;
+        for (j = 0; j < list.length; j++) {
+          r = applyPerm(list.vals[j], ROT_PERM);
+          h = applyPerm(list.vals[j], HORIZ_FLIP_PERM);
+          v = applyPerm(list.vals[j], VERT_FLIP_PERM);
+          c = applyPerm(list.vals[j], COMP_PERM);
+          // r2 = applyPerm(r, ROT_PERM);
+          // r3 = applyPerm(r2, ROT_PERM);
 
-        insert(&list, r);
-        insert(&list, h);
-        insert(&list, v);
-        insert(&list, c);
-      }
+          something += insert(&list, r);
+          // something += insert(&list, r2);
+          // something += insert(&list, r3);
+          something += insert(&list, h);
+          something += insert(&list, v);
+          something += insert(&list, c);
+          // typedef enum { VERT, HORIZ, COMP, ROT } operation;
+
+          if (CANNONICAL_INDEX[r] != i) {
+            CANNONICAL_INDEX[r] = i;
+            concatOps(list.vals[j], r, ROT);
+          }
+
+          if (CANNONICAL_INDEX[h] != i) {
+            CANNONICAL_INDEX[h] = i;
+            concatOps(list.vals[j], h, HORIZ);
+          }
+
+          if (CANNONICAL_INDEX[v] != i) {
+            CANNONICAL_INDEX[v] = i;
+            concatOps(list.vals[j], v, VERT);
+          }
+
+          if (CANNONICAL_INDEX[c] != i) {
+            CANNONICAL_INDEX[c] = i;
+            concatOps(list.vals[j], c, COMP);
+          }
+
+          // CANNONICAL_INDEX[r2] = i;
+          // CANNONICAL_INDEX[r3] = i;
+          //  CANNONICAL_INDEX[h] = i;
+          //  CANNONICAL_INDEX[v] = i;
+          //  CANNONICAL_INDEX[c] = i;
+        }
+      } while (something);
 
       for (j = 0; j < list.length; j++)
         CANNONICAL_INDEX[list.vals[j]] = i;
     }
- }
+  }
 }
 
 int PATTERN_MASK;
@@ -580,7 +609,6 @@ void printPatternMask(FILE *f) {
   for (i = 0; i < 16; i++) {
     fprintf(f, "%d", !!CHECK_BIT(PATTERN_MASK, i));
   }
-  fprintf(f, "\n");
 }
 
 void print2x2MatrixInLatex(int i) {
@@ -685,10 +713,25 @@ void dfs(int n, int k) {
     printf("%llu ", COUNT);
   ALL_RESULTS[PATTERN_MASK].counts[n][k] = COUNT;
   ALL_RESULTS[PATTERN_MASK].pattern_mask = PATTERN_MASK;
+  ALL_RESULTS[PATTERN_MASK].cannon_index = CANNONICAL_INDEX[PATTERN_MASK];
+}
+
+void tests() {
+
+  // All 1s and all 0's matrix are complements
+  assert(32768 == applyPerm(1, COMP_PERM));
+  assert(1 == applyPerm(32768, COMP_PERM));
 }
 
 int main() {
   int i, j;
+
+  fillPatterns();
+  fillPerms();
+  tests();
+
+  for (i = 0; i < 65536; i++)
+    ALL_RESULTS[i].opCount = 0;
   if (EQUIVALENCE_CLASSES_TOGGLE)
     calculateCannonicalIndex();
 
@@ -734,24 +777,44 @@ int main() {
     printMatrixSumsInLatex(ALL_RESULTS[0]);
     printf("\\\\\n");
     printf("Wilf Class %d\\\\\n", wilfClass++);
+    printf("%d %d ", CANNONICAL_INDEX[0], 0);
     if (ALL_RESULTS[0].isTranspose)
       printf("Transpose ");
     PATTERN_MASK = ALL_RESULTS[0].pattern_mask;
     printPatternMask(stdout);
-    // printPatternMaskInLatex(ALL_RESULTS[0].pattern_mask);
+    printf("\n");
 
+    // printPatternMaskInLatex(ALL_RESULTS[0].pattern_mask);
+    int lastCannon = 0;
+    int differentFromCannon = 0;
+    int classSize = 1;
+    int forbCount = 16;
     for (i = 1; i < 65536; i++) {
       if (cmpMats(ALL_RESULTS[i].counts, ALL_RESULTS[i - 1].counts) != 0) {
+        printf("\n[ClassSize %d][ForbCount %d] ", classSize, forbCount);
+        if (differentFromCannon)
+          printf("[Special class]");
+        printf("\n");
         printf("\\\\\n");
         printf("\\\\\n");
         printMatrixSumsInLatex(ALL_RESULTS[i]);
         printf("Wilf Class %d\\\\\n", wilfClass++);
+        lastCannon = ALL_RESULTS[i].cannon_index;
+        differentFromCannon = 0;
+        classSize = 0;
+        forbCount = 16 - ALL_RESULTS[i].counts[2][2];
       }
+      if (ALL_RESULTS[i].cannon_index != lastCannon)
+        differentFromCannon++;
+      classSize++;
       printf("\\\\\n");
       PATTERN_MASK = ALL_RESULTS[i].pattern_mask;
+      printf("%d %d ", ALL_RESULTS[i].cannon_index, PATTERN_MASK);
       if (ALL_RESULTS[i].isTranspose)
         printf("Transpose ");
       printPatternMask(stdout);
+      printOps(stdout, ALL_RESULTS[i]);
+      printf("\n");
       // printPatternMaskInLatex(ALL_RESULTS[i].pattern_mask);
     }
     printf("\\end{document}");
